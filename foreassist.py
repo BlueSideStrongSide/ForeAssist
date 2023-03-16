@@ -1,0 +1,183 @@
+import json
+import yaml
+import streamlit as st
+import argparse
+import pandas as pd
+from pathlib import Path
+
+REFERENCES = ["https://www.jaiminton.com/cheatsheet/DFIR/",
+              "https://github.com/ForensicArtifacts/artifacts"
+              ]
+
+#streamlit global config
+st.set_page_config(layout="wide")
+
+def main():
+    build_streamlit_app()
+    return 1
+
+@st.cache_data
+def read_supported_artifacts(wanted_os:list=None):
+    artifact_source = Path("share/artifacts")
+
+    # pass all files in that match the supplied patter
+    artifact_list = artifact_source.glob('**/*.yaml')
+
+    #get a count of artifacts by OS to use later
+    stats_by_os = {}
+    for os in wanted_os:
+        stats_by_os[os] = 0
+
+
+    parsed_artifacts = []
+    for artifact in artifact_list:
+
+        with open(str(artifact), mode="rb") as artifact_bin:
+            read_backend_artifacts = yaml.safe_load_all(artifact_bin)
+
+            for item in read_backend_artifacts:
+                for os in wanted_os:
+                    if not os == "Any":
+                        item_filter = item.get("supported_os")
+                        if item_filter and (os in item_filter):
+                            parsed_artifacts.append(item)
+                            stats_by_os[os] +=1
+                    else:
+                        stats_by_os[os] += 1
+                        parsed_artifacts.append(item)
+
+    print(stats_by_os)
+    return parsed_artifacts, stats_by_os
+
+@st.cache_data
+def read_selected_os_checkbox(checkbox_options) -> dict[str,bool]:
+    wanted_os = []
+    for option, enabled in checkbox_options.items():
+        if enabled:
+            wanted_os.append(option)
+
+    return wanted_os
+
+@st._cache_data
+def render_selected_artifacts(imported_artifacts=None, selected_artifact=None):
+
+    #return the filtered object keep all writes in streamlit function
+    for st_ready_artifact in imported_artifacts:
+        if st_ready_artifact["name"] == selected_artifact:
+            return st_ready_artifact
+
+@st._cache_data
+def fix_sources_view():
+    ...
+
+@st._cache_data
+def render_all_selected_artifacts(imported_artifacts=None):
+    base_df = pd.DataFrame(imported_artifacts)
+
+    #normalize json for nested data
+    sources_normalized = pd.json_normalize(base_df['sources'])
+    # rename the resulting cols
+    sources_normalized.columns = ["Source_1","Source_2","Source_3"]
+    # use lambda to concat values from all cols into one col, also drop empty and set type
+    sources_concatenated = sources_normalized.apply(lambda x: '||'.join(x.dropna().astype(str)), axis=1)
+
+    #need logic to add common values across all dataframes
+    #ESXi does not have provides and aliases
+    # result_df = pd.concat([base_df[["name","doc","supported_os","urls","provides","aliases"]], sources_normalized], axis=1)
+    result_df = pd.concat([base_df[["name", "doc", "supported_os", "urls" ]], sources_concatenated],
+                          axis=1)
+    print(result_df.columns)
+    result_df = result_df.rename(columns={0:'Sources'})
+
+    st.dataframe(result_df)
+
+@st._cache_data
+def selected_artifact_stats(selected_artifacts, st_provided_stats):
+    #knock out logic to count items by OS
+    # what happens when an artiifact shows in both
+    # that artifact should be counted twice
+
+
+    artifact_stats = ({"Total Aqrtifacts":len(selected_artifacts),
+                      "Total Artifacts By OS":st_provided_stats})
+
+    return pd.DataFrame.from_dict([artifact_stats]).astype(str).transpose()
+
+def build_streamlit_app():
+    #Build This Dynamically
+    supported_os = ("Any", "Windows", "Linux", "Darwin", "ESXi")
+    supported_export_types = ["csv","txt","json"]
+
+    st.title("ForeAssist")
+    st.write(f'"An OpenSource project pulling together forensic artifacts from a few community projects. The goal is to have an easy and friendly way to find relevant artifacts and supporting information on each. Currently this page uses the awesome! work of the resources listed. {" , ".join(REFERENCES)}. '
+             f'\n\nCredit and attribution will be associated with any adhoc additions as well!')
+
+    st.sidebar.file_uploader(
+        "Give me a list of available filenames, I will check if any match a LIKELY forensic artifact")
+
+    st.write("What OS are you interested in?")
+
+    #move this to a seperate function
+    # col1, col2, col3, col4, col5 = st.columns(5)
+    #
+    # with col1:
+    #     st.checkbox(supported_os[0])
+    # with col2:
+    #     st.checkbox(supported_os[1])
+    # with col3:
+    #     st.checkbox(supported_os[2])
+    # with col4:
+    #     st.checkbox(supported_os[3])
+    # with col5:
+    #     st.checkbox(supported_os[4])
+
+    checkbox_options = {}
+    for item,os in enumerate(supported_os):
+            selected_os = st.checkbox(os, key=item)
+            checkbox_options[os] = selected_os
+    st_ready_artifacts, st_ready_stats = read_supported_artifacts(wanted_os=read_selected_os_checkbox(checkbox_options))
+
+    selected_artifact_visbility = "hidden"
+    # st.sidebar.subheader("Addiitional Filters")
+    # st.sidebar.radio("Modified View", ("view1", "view2", "view3"))
+    # st.sidebar.text_input("Dynamically Build Your Own Filter")
+
+    st.sidebar.subheader("Collection Scripts:")
+    st.sidebar.button("Collect Windows Selected Artifacts")
+    st.sidebar.button("Collect Linux Selected Artifiacts")
+    st.sidebar.button("Collect Artifacts Using Python")
+    st.sidebar.subheader("Export:")
+    st.sidebar.selectbox(label="Type:",options=supported_export_types)
+    st.sidebar.button("Export Filtered Artifacts")
+
+    if any([x for x in checkbox_options.values()]):
+        st.subheader("Included Artifacts")
+        # artifact stats
+
+        hide_table_row_index = """
+                    <style>
+                    thead tr:first-child {display:none}
+                    </style>
+                    """
+        st.markdown(hide_table_row_index, unsafe_allow_html=True)
+        st.table(selected_artifact_stats(st_ready_artifacts, st_ready_stats))
+
+        check_view_all = st.checkbox("View All Artifacts")
+        if check_view_all:
+            # need to write all matching yaml filters
+            render_all_selected_artifacts(imported_artifacts=st_ready_artifacts)
+
+        else:
+            selected_artifact_visbility = "visible"
+            #build select box of artifacts macthing the OS filter
+            selected_artifact = st.selectbox("Included Artifacts", [st_ready_label['name'] for st_ready_label in st_ready_artifacts],
+                                             label_visibility=selected_artifact_visbility)
+
+            #We may need to update and pass a placeholder here
+            rendered = render_selected_artifacts(imported_artifacts=st_ready_artifacts, selected_artifact=selected_artifact)
+            st.json(rendered, expanded=True)
+
+
+
+if __name__ == '__main__':
+    main()
