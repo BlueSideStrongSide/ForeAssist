@@ -89,19 +89,26 @@ def filter_view_all_dataframe(current_dataframe:pd.DataFrame=None, _modification
 def render_all_selected_artifacts(imported_artifacts:list=None, _modification_container=None, _filter_checkbox=None) -> pd.DataFrame:
     base_df = pd.DataFrame(imported_artifacts)
 
+    #search through col and keep the highest value for the length
+    max_cols = max([len(s) for s in base_df['sources']])
+
     #normalize json for nested data
     sources_normalized = pd.json_normalize(base_df['sources'])
+
+    #reindex cols to the maximum number of cols
+    sources_normalized = sources_normalized.reindex(range(max_cols), axis=1)
+
     # rename the resulting cols
-    sources_normalized.columns = ["Source_1","Source_2","Source_3"]
+    temp_names = [f'Source_{i+1}' for i in range(max_cols)]
+    sources_normalized.columns = temp_names
+
+
     # use lambda to concat values from all cols into one col, also drop empty and set type
     sources_concatenated = sources_normalized.apply(lambda x: '\n\n'.join(x.dropna().astype(str)), axis=1)
 
-    #need logic to add common values across all dataframes
-    #ESXi does not have provides and aliases
-    result_df = pd.concat([base_df[["name", "doc", "supported_os", "urls" ]], sources_concatenated],
-                          axis=1)
+    #concats our new col into a new datframe
+    result_df = pd.concat([base_df[["name", "doc", "supported_os", "urls" ]], sources_concatenated],axis=1)
 
-    # print(result_df.columns)
     result_df = result_df.rename(columns={0:'Sources'})
 
     #call filter function return dataframe to outter function
