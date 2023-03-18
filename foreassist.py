@@ -70,16 +70,17 @@ def render_selected_artifacts(imported_artifacts=None, selected_artifact=None):
 def filter_view_all_dataframe(current_dataframe:pd.DataFrame=None, _modification_container=None, _filter_checkbox=None):
 
     with _modification_container:
-        #current_dataframe.columns will be used in the future, currently need to normalize list in certain coloumns
-        #using static values for now
+
         if _filter_checkbox:
-            to_filter_col = st.multiselect("Filter Artifacts Data On:", ("name","doc","Sources"), default=("name"))
+            to_filter_col = st.multiselect("Filter Artifacts Data On:", ("name","doc","Sources", "supported_os", "Sources"), default=("name"))
             if to_filter_col:
                 for item in to_filter_col:
                     padding_left, padding_right = st.columns((1, 100))
                     input_left, input_right = st.columns((1, 100))
                     wanted_substring = padding_right.text_input(f"↳ Substring found in -->  {item}:")
-                    if wanted_substring:
+                    if wanted_substring and item == "supported_os":
+                        current_dataframe = current_dataframe[current_dataframe["supported_os"].apply(lambda x:  len(x)==1 and x[0] == wanted_substring)]
+                    elif wanted_substring:
                         current_dataframe = current_dataframe[current_dataframe[item].str.contains(wanted_substring, case=False)]
 
 
@@ -93,7 +94,7 @@ def render_all_selected_artifacts(imported_artifacts:list=None, _modification_co
     # rename the resulting cols
     sources_normalized.columns = ["Source_1","Source_2","Source_3"]
     # use lambda to concat values from all cols into one col, also drop empty and set type
-    sources_concatenated = sources_normalized.apply(lambda x: '||'.join(x.dropna().astype(str)), axis=1)
+    sources_concatenated = sources_normalized.apply(lambda x: '\n\n'.join(x.dropna().astype(str)), axis=1)
 
     #need logic to add common values across all dataframes
     #ESXi does not have provides and aliases
@@ -110,14 +111,11 @@ def render_all_selected_artifacts(imported_artifacts:list=None, _modification_co
     return filtered_df
 
 @st._cache_data
-def export_rendered_artifacts_by_type(input_data_frame:pd.DataFrame=None,
-                                      _export_options:dict=None,
-                                      selected_export_type:str=None):
+def export_rendered_artifacts_by_type(input_data_frame:pd.DataFrame=None,_export_options:dict=None,selected_export_type:str=None):
     extended_options=None
     for type, export_method in _export_options.items():
         if selected_export_type == type:
             return export_method(input_data_frame)
-
 
 
 @st._cache_data
