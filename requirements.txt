@@ -2,3 +2,4 @@ pandas
 pyyaml
 streamlit
 tabulate
+artifacts
