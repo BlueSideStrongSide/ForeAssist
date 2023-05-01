@@ -152,6 +152,7 @@ def build_streamlit_app():
     st.title("ForeAssist")
     st.write(f'"An OpenSource project pulling together forensic artifacts from a few community projects. The goal is to have an easy and friendly way to find relevant artifacts and supporting information on each. Currently this page uses the awesome! work of the resources listed. {" , ".join(REFERENCES)}. '
              f'\n\nCredit and attribution will be associated with any adhoc additions as well!')
+    st.write(f'Certain functionaility is still being added, please see the github repo for current issues/enhancements/bugs.')
 
     st.sidebar.file_uploader(
         "Give me a list of available filenames, I will check if any match a LIKELY forensic artifact")
