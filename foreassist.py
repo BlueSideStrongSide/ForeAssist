@@ -167,6 +167,7 @@ def build_streamlit_app() ->None:
     st.write(f'The goal is to have an easy and friendly way to find relevant artifacts and supporting information on each. ')
     st.write(f'Currently this page uses the awesome! work of the resources listed.')
     st.write(f'Credit and attribution will be associated with any adhoc additions as well!')
+
     st.markdown("""
     - https://www.jaiminton.com/cheatsheet/DFIR/
     - https://github.com/ForensicArtifacts/artifacts
@@ -220,16 +221,15 @@ def build_streamlit_app() ->None:
                                           _filter_checkbox=check_additional_filters)
 
             if not rendered_dataframe.empty:
+                st.sidebar.subheader("Export:")
+                export_type = st.sidebar.selectbox(label="Type:", options=supported_export_types)
+
                 wanted_expansion = build_env_var_expansion(input_data_frame=rendered_dataframe)
                 if wanted_expansion:
                     st.sidebar.subheader("Environment Variables")
                     st.sidebar.write("Use the section below to expand provided environment variables.")
                     for item in wanted_expansion:
                         st.sidebar.text_input(item, "")
-
-
-                st.sidebar.subheader("Export:")
-                export_type = st.sidebar.selectbox(label="Type:", options=supported_export_types)
 
                 btn_export_clicked = st.sidebar.download_button(label="Export Filtered Artifacts",
                                                                 file_name=f"filtered_exports.{export_type}",
